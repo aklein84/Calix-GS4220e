@@ -1,0 +1,104 @@
+- name: "Calix GS4220e Reboot"
+  hosts: localhost
+  gather_facts: false
+  user: ansible
+  become: false
+  vars_files:
+    - vault.yml
+  vars:
+    - router_ip: "<ROUTER IP>"
+
+  tasks:
+  - name: "Set start time fact"
+    shell: 'date +"%F %T"'
+    register: start_time
+
+  - name: "Get nonce"
+    uri:
+      url: 'https://{{ router_ip }}/get_nonce.cmd'
+      method: POST
+      headers:
+        User-Agent: 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0'
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        Accept-Language: 'en-US,en;q=0.5'
+        Accept-Encoding: 'gzip, deflate, br, zstd'
+        Content-Type: application/x-www-form-urlencoded
+        Connection: keep-alive
+        Cookie: Authorization=YWRtaW46ZjRjN2JmOTRkMjU3YTUzY2YzN2RmZjY1YWMyYjVjZjIxNGEyY2I5NzkyNmIwNTU3NzllZmQ2OGNjMWE3NWRjNTo3YWU0Yjc4MTJmY2U1ZTc3ZDIwODIyNDRiMmY5ZTNlYTRhZjgwNmRiOWVjNTA2NzhhN2QxMGFkN2ExMDdmOWQ4 # Unsure if able to re-use on other devices. Can be obtained by opening developer tools and going to the URL above.
+        Upgrade-Insecure-Requests: '1'
+        Sec-Fetch-Dest: document
+        Sec-Fetch-Mode: navigate
+        Sec-Fetch-Site: none
+        Sec-Fetch-User: '?1'
+        Priority: 'u=0, i'
+      validate_certs: false
+      return_content: true
+    register: nonce
+
+  - name: "Get Auth Token"
+    uri:
+      url: "https://{{ router_ip }}/login.cgi"
+      method: POST
+      body:
+        Username: "{{ router_username }}"
+        auth: "{{ (router_username + ':' + nonce.content + ':' + router_password) | hash('sha256') }}"
+        nonce: "{{ nonce.content }}"
+      body_format: form-urlencoded
+      headers:
+        User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0'
+        Accept: '*/*'
+        Accept-Language: 'en-US,en;q=0.5'
+        Accept-Encoding: 'gzip, deflate, br, zstd'
+        Content-Type: application/x-www-form-urlencoded
+        Origin: 'https://{{ router_ip }}'
+        DNT: '1'
+        Sec-GPC: '1'
+        Connection: keep-alive
+        Referer: 'https://{{ router_ip }}/'
+        Sec-Fetch-Dest: empty
+        Sec-Fetch-Mode: cors
+        Sec-Fetch-Site: same-origin
+      validate_certs: false
+    register: login_result
+
+  - name: 'Send Reboot Command'
+    uri:
+      url: 'https://{{ router_ip }}/rebootinfo.cgi'
+      method: POST
+      headers:
+        User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0'
+        Accept: 'application/json, text/plain, */*'
+        Accept-Language: 'en-US,en;q=0.5'
+        Accept-Encoding: 'gzip, deflate, br, zstd'
+        Content-Type: application/x-www-form-urlencoded;charset=utf-8;
+        Content-Length: '0'
+        Origin: 'https://{{ router_ip }}'
+        DNT: '1'
+        Sec-GPC: '1'
+        Connection: keep-alive
+        Referer: 'https://{{ router_ip }}/'
+        Cookie: "{{ login_result.cookies_string }}"
+        Sec-Fetch-Dest: empty
+        Sec-Fetch-Mode: cors
+        Sec-Fetch-Site: same-origin
+        Priority: u=0
+      validate_certs: false
+    register: reboot_result
+
+  - name: "Wait for internet to come up"
+    wait_for:
+      host: "8.8.8.8"
+      port: 53
+      delay: 10
+
+  - name: "Set finish time fact"
+    shell: 'date +"%F %T"'
+    register: finish_time
+
+  - name: "Send notifcation of completed reboot"
+    pushover:
+      title: "Router Reboot"
+      msg: "Router reboot started at: {{ start_time.stdout }} and completed at: {{ finish_time.stdout }}"
+      app_token: "{{ pushover_app_token }}"
+      user_key: "{{ pushover_user_token }}"
+    delegate_to: localhost
