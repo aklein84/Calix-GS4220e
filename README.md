@@ -9,3 +9,7 @@ I was having wireless issues with connections getting dropped randomly, and a qu
 *router_username* = Administrative account used to login to router and issue reboot. ***Stored in vault.***
 
 *router_password* = Password for the above account. ***Stored in vault.***
+
+*pushover_app_token* = [Pushover](https://pushover.net) application token ***Stored in vault.***
+
+*pushover_user_token* = [Pushover](https://pushover.net) user token ***Stored in vault.***
