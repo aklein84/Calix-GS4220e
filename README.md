@@ -5,5 +5,7 @@ I was having wireless issues with connections getting dropped randomly, and a qu
 
 ### Variables
 *router_ip* = IP address of the router.
+
 *router_username* = Administrative account used to login to router and issue reboot. ***Stored in vault.***
+
 *router_password* = Password for the above account. ***Stored in vault.***
